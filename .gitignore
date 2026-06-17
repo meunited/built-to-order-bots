@@ -1,0 +1,28 @@
+# Build artifacts
+*.swp
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.Trashes
+._*
+
+# Local secrets / env
+.env
+.env.local
+*.pem
+*.key
+service-account*.json
+*-credentials.json
+gha-creds-*.json
+
+# Node (in case we add tooling later)
+node_modules/
+npm-debug.log*
+yarn-error.log

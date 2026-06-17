@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Built To Order Bots</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; overscroll-behavior: none; touch-action: manipulation; }
+  .screen { display: none; }
+  .screen.active { display: flex; }
+  .pixel { image-rendering: pixelated; }
+  .glow { text-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+  .card { background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(148, 163, 184, 0.2); backdrop-filter: blur(8px); }
+  .card.selected { border-color: #facc15; box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.3); }
+  .btn { transition: all 0.15s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(1px); }
+  .stat-bar { transition: width 0.3s ease; }
+  canvas { display: block; touch-action: none; }
+  .scrollbar::-webkit-scrollbar { width: 6px; }
+  .scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 3px; }
+  @keyframes shake { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-2px,1px)} 50%{transform:translate(2px,-1px)} 75%{transform:translate(-1px,2px)} }
+  .shake { animation: shake 0.2s linear; }
+  @keyframes pulse-glow { 0%,100%{box-shadow:0 0 8px rgba(250,204,21,0.4)} 50%{box-shadow:0 0 20px rgba(250,204,21,0.8)} }
+  .pulse { animation: pulse-glow 1.5s ease-in-out infinite; }
+  @keyframes coin-spin { 0%{transform:rotateY(0)} 100%{transform:rotateY(360deg)} }
+  .coin { display:inline-block; animation: coin-spin 2s linear infinite; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen overflow-x-hidden">
+
+<!-- ==================== TITLE SCREEN ==================== -->
+<div id="title-screen" class="screen active min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 p-4">
+  <div class="text-center max-w-2xl">
+    <div class="mb-2 text-yellow-400 text-6xl md:text-8xl font-black tracking-tight glow">BUILT TO ORDER</div>
+    <div class="mb-8 text-purple-300 text-5xl md:text-7xl font-black tracking-tight glow">BOTS</div>
+    <p class="text-slate-400 mb-10 text-lg">Build a monster. Arm it. Send it to fight.</p>
+    <div class="flex flex-col gap-3 max-w-xs mx-auto">
+      <button onclick="startGame('beginner')" class="btn bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-lg text-lg">▶ New Battle</button>
+      <button onclick="startGame('intermediate')" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg text-lg">⚔ Build & Fight</button>
+      <button onclick="startGame('tournament')" class="btn bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-lg text-lg pulse">🏆 Tournament Mode</button>
+      <button onclick="showHowTo()" class="btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg">How to Play</button>
+    </div>
+    <div id="continue-tournament" class="mt-6 hidden">
+      <button onclick="continueTournament()" class="btn bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-6 rounded-lg">▶ Continue Tournament</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== HOW TO PLAY ==================== -->
+<div id="how-to-screen" class="screen min-h-screen flex-col items-center justify-center p-4">
+  <div class="card rounded-xl p-6 max-w-2xl">
+    <h2 class="text-2xl font-bold text-yellow-400 mb-4">How to Play</h2>
+    <ul class="space-y-2 text-slate-300 text-sm">
+      <li><b class="text-yellow-300">Pick a monster type</b> - 12 species with unique stats and abilities.</li>
+      <li><b class="text-yellow-300">Add enhancements</b> - Up to 4: tentacles, sting, fiery breath, wings, etc.</li>
+      <li><b class="text-yellow-300">Equip a weapon</b> - 11 weapons from sword to plasma rifle.</li>
+      <li><b class="text-yellow-300">Pick a battlefield</b> - Desert, jungle, or swamp.</li>
+      <li><b class="text-yellow-300">Pick a mode</b> - Destruction, Flag Capture, or The Horde.</li>
+      <li><b class="text-yellow-300">Win</b> to earn money. Spend it in tournament mode to build an army.</li>
+    </ul>
+    <h3 class="text-xl font-bold text-yellow-400 mt-6 mb-2">Controls</h3>
+    <ul class="space-y-1 text-slate-300 text-sm">
+      <li>← → or A/D : Move</li>
+      <li>↑ or W or Space : Jump (double-jump with Wings)</li>
+      <li>Click / Tap : Shoot</li>
+      <li>ESC : Pause</li>
+    </ul>
+    <button onclick="showScreen('title-screen')" class="btn mt-6 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg">← Back</button>
+  </div>
+</div>
+
+<!-- ==================== BUILDER SCREEN ==================== -->
+<div id="builder-screen" class="screen min-h-screen flex-col bg-gradient-to-b from-slate-950 to-slate-900">
+  <header class="p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-slate-950/95 z-10">
+    <div>
+      <h2 class="text-xl font-bold text-yellow-400">Monster Builder</h2>
+      <div class="text-sm text-slate-400" id="builder-difficulty-label"></div>
+    </div>
+    <div class="text-right">
+      <div class="text-2xl font-bold text-yellow-400"><span class="coin">◉</span> <span id="builder-money">0</span></div>
+      <div class="text-xs text-slate-400">budget remaining</div>
+    </div>
+  </header>
+  <div class="flex-1 overflow-y-auto p-4">
+    <div class="max-w-6xl mx-auto grid md:grid-cols-2 gap-4">
+      <!-- Preview -->
+      <div class="card rounded-xl p-4">
+        <h3 class="font-bold text-yellow-400 mb-2">Your Monster</h3>
+        <div class="bg-slate-900 rounded-lg p-4 mb-3 flex items-center justify-center h-48" id="monster-preview">
+          <div class="text-6xl" id="preview-emoji">?</div>
+        </div>
+        <div class="text-center">
+          <div class="text-lg font-bold" id="preview-name">No monster</div>
+          <div class="text-sm text-slate-400" id="preview-type">Pick a type below</div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 mt-3 text-sm">
+          <div>HP: <span id="stat-hp" class="font-bold text-green-400">0</span></div>
+          <div>Speed: <span id="stat-speed" class="font-bold text-blue-400">0</span></div>
+          <div>Jump: <span id="stat-jump" class="font-bold text-purple-400">0</span></div>
+          <div>Damage: <span id="stat-dmg" class="font-bold text-red-400">0</span></div>
+        </div>
+        <div class="mt-2 text-sm">Weapon: <span id="preview-weapon" class="font-bold text-yellow-300">—</span></div>
+        <div class="text-sm">Enhancements: <span id="preview-enhs" class="text-purple-300">—</span></div>
+      </div>
+
+      <!-- Pickers -->
+      <div class="space-y-3">
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-yellow-400">1. Monster Type</h3>
+            <span class="text-xs text-slate-400">required</span>
+          </div>
+          <div id="monster-picker" class="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto scrollbar pr-1"></div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-yellow-400">2. Weapon</h3>
+            <span class="text-xs text-slate-400">required</span>
+          </div>
+          <div id="weapon-picker" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto scrollbar pr-1"></div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="font-bold text-yellow-400">3. Enhancements <span class="text-slate-400 text-xs font-normal">(up to 4)</span></h3>
+            <span class="text-xs text-slate-400">optional</span>
+          </div>
+          <div id="enh-picker" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto scrollbar pr-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="p-4 border-t border-slate-800 flex gap-2 sticky bottom-0 bg-slate-950/95">
+    <button onclick="cancelBuilder()" class="btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-lg">Cancel</button>
+    <button onclick="confirmBuilder()" id="builder-confirm" class="btn flex-1 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-3 px-6 rounded-lg">Confirm & Pick Battlefield →</button>
+  </footer>
+</div>
+
+<!-- ==================== BATTLEFIELD SELECT ==================== -->
+<div id="battlefield-screen" class="screen min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 p-4">
+  <h2 class="text-3xl font-bold text-yellow-400 mb-2 glow">Choose Battlefield</h2>
+  <p class="text-slate-400 mb-6">Each arena has different terrain and hazards.</p>
+  <div id="battlefield-picker" class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl w-full"></div>
+  <button onclick="showScreen('builder-screen')" class="mt-6 btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg">← Back</button>
+</div>
+
+<!-- ==================== MODE SELECT ==================== -->
+<div id="mode-screen" class="screen min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 p-4">
+  <h2 class="text-3xl font-bold text-yellow-400 mb-2 glow">Choose Game Mode</h2>
+  <p class="text-slate-400 mb-6" id="mode-battlefield-label"></p>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl w-full">
+    <div onclick="selectMode('destruction')" class="card rounded-xl p-6 cursor-pointer hover:border-red-500">
+      <div class="text-4xl mb-2">💀</div>
+      <div class="text-xl font-bold text-red-400 mb-1">Destruction</div>
+      <p class="text-sm text-slate-400">Kill the enemy monster. Straight-up brawl.</p>
+    </div>
+    <div onclick="selectMode('flag')" class="card rounded-xl p-6 cursor-pointer hover:border-blue-500">
+      <div class="text-4xl mb-2">🚩</div>
+      <div class="text-xl font-bold text-blue-400 mb-1">Flag Capture</div>
+      <p class="text-sm text-slate-400">Grab the flag 3 times before the enemy does.</p>
+    </div>
+    <div onclick="selectMode('horde')" class="card rounded-xl p-6 cursor-pointer hover:border-green-500">
+      <div class="text-4xl mb-2">🧟</div>
+      <div class="text-xl font-bold text-green-400 mb-1">The Horde</div>
+      <p class="text-sm text-slate-400">Kill more Hordlings than the enemy monster.</p>
+    </div>
+  </div>
+  <button onclick="showScreen('battlefield-screen')" class="mt-6 btn bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-lg">← Back</button>
+</div>
+
+<!-- ==================== BATTLE SCREEN ==================== -->
+<div id="battle-screen" class="screen min-h-screen flex-col bg-black relative">
+  <div class="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-start pointer-events-none">
+    <div class="card rounded-lg p-2 pointer-events-auto">
+      <div class="text-xs text-slate-400">YOU</div>
+      <div class="w-32 h-2 bg-slate-800 rounded overflow-hidden">
+        <div id="player-hp-bar" class="stat-bar h-full bg-green-500" style="width:100%"></div>
+      </div>
+      <div class="text-xs mt-1 text-yellow-300" id="player-ammo">∞</div>
+    </div>
+    <div class="card rounded-lg p-2 text-center pointer-events-auto">
+      <div class="text-xs text-slate-400" id="mode-label">Mode</div>
+      <div class="text-lg font-bold text-yellow-400" id="score-display">0 : 0</div>
+      <div class="text-xs text-slate-400">Time: <span id="time-display">60</span>s</div>
+    </div>
+    <div class="card rounded-lg p-2 pointer-events-auto text-right">
+      <div class="text-xs text-slate-400">ENEMY</div>
+      <div class="w-32 h-2 bg-slate-800 rounded overflow-hidden">
+        <div id="enemy-hp-bar" class="stat-bar h-full bg-red-500" style="width:100%"></div>
+      </div>
+      <div class="text-xs mt-1 text-slate-400" id="enemy-info">—</div>
+    </div>
+  </div>
+  <canvas id="game-canvas" class="w-full h-screen"></canvas>
+  <!-- Mobile controls -->
+  <div class="md:hidden absolute bottom-2 left-0 right-0 z-10 flex justify-between px-2 pointer-events-none">
+    <div class="flex gap-2 pointer-events-auto">
+      <button ontouchstart="setKey('left',true)" ontouchend="setKey('left',false)" class="bg-slate-800/80 w-14 h-14 rounded-full text-2xl">←</button>
+      <button ontouchstart="setKey('right',true)" ontouchend="setKey('right',false)" class="bg-slate-800/80 w-14 h-14 rounded-full text-2xl">→</button>
+    </div>
+    <div class="flex gap-2 pointer-events-auto">
+      <button ontouchstart="setKey('up',true)" ontouchend="setKey('up',false)" class="bg-slate-800/80 w-14 h-14 rounded-full text-2xl">↑</button>
+      <button ontouchstart="shootPress()" ontouchend="shootRelease()" class="bg-red-600/80 w-16 h-16 rounded-full text-2xl">●</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== RESULTS SCREEN ==================== -->
+<div id="results-screen" class="screen min-h-screen flex-col items-center justify-center p-4">
+  <div class="card rounded-xl p-6 max-w-md w-full text-center">
+    <div class="text-6xl mb-3" id="result-emoji">🏆</div>
+    <h2 class="text-3xl font-bold mb-2" id="result-title">Victory!</h2>
+    <p class="text-slate-400 mb-4" id="result-subtitle"></p>
+    <div class="bg-slate-900 rounded-lg p-4 mb-4">
+      <div class="flex justify-between mb-2"><span>Battlefield</span><span id="result-battlefield" class="font-bold">—</span></div>
+      <div class="flex justify-between mb-2"><span>Mode</span><span id="result-mode" class="font-bold">—</span></div>
+      <div class="flex justify-between mb-2"><span>Score</span><span id="result-score" class="font-bold">—</span></div>
+      <div class="flex justify-between mb-2"><span>Damage Dealt</span><span id="result-dmg" class="font-bold text-red-400">—</span></div>
+      <div class="flex justify-between mb-2"><span>Damage Taken</span><span id="result-taken" class="font-bold text-orange-400">—</span></div>
+      <div class="border-t border-slate-700 mt-3 pt-3 flex justify-between text-lg">
+        <span>Money</span>
+        <span id="result-money" class="font-bold text-yellow-400">+0</span>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="rematch()" class="btn flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg">↻ Rematch</button>
+      <button onclick="resultsNext()" class="btn flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-lg" id="results-next-btn">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TOURNAMENT HUB ==================== -->
+<div id="tournament-screen" class="screen min-h-screen flex-col bg-gradient-to-b from-slate-950 to-slate-900">
+  <header class="p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-slate-950/95 z-10">
+    <div>
+      <h2 class="text-xl font-bold text-purple-400">Tournament HQ</h2>
+      <div class="text-sm text-slate-400">Career Mode</div>
+    </div>
+    <div class="text-right">
+      <div class="text-2xl font-bold text-yellow-400"><span class="coin">◉</span> <span id="tour-money">0</span></div>
+      <div class="text-xs text-slate-400">career funds</div>
+    </div>
+  </header>
+  <div class="flex-1 overflow-y-auto p-4">
+    <div class="max-w-5xl mx-auto">
+      <div class="card rounded-xl p-4 mb-4">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="font-bold text-purple-300">Career Stats</h3>
+          <button onclick="resetTournament()" class="text-xs text-red-400 hover:text-red-300">reset save</button>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-sm text-center">
+          <div class="bg-slate-900 rounded p-2"><div class="text-2xl font-bold" id="tour-wins">0</div><div class="text-xs text-slate-400">Wins</div></div>
+          <div class="bg-slate-900 rounded p-2"><div class="text-2xl font-bold" id="tour-losses">0</div><div class="text-xs text-slate-400">Losses</div></div>
+          <div class="bg-slate-900 rounded p-2"><div class="text-2xl font-bold" id="tour-streak">0</div><div class="text-xs text-slate-400">Streak</div></div>
+        </div>
+      </div>
+
+      <div class="card rounded-xl p-4 mb-4">
+        <h3 class="font-bold text-purple-300 mb-3">Your Corrals <span class="text-xs text-slate-400 font-normal">(<span id="corrals-count">0</span>/6)</span></h3>
+        <div id="corrals-list" class="space-y-2"></div>
+        <button onclick="openBuilderForNew()" id="tour-recruit-btn" class="mt-3 btn w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-lg">+ Recruit New Monster</button>
+      </div>
+
+      <div class="card rounded-xl p-4">
+        <h3 class="font-bold text-purple-300 mb-3">Next Battle</h3>
+        <p class="text-sm text-slate-400 mb-3">Select a monster from your corrals to send into battle.</p>
+        <button onclick="tourNextBattle()" id="tour-fight-btn" class="btn w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 rounded-lg disabled:bg-slate-700 disabled:text-slate-500" disabled>Select a Monster First</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== DATA =====================
+const MONSTERS = {
+  tyro:     { name:'Tyro',     emoji:'🟢', color:'#888888', hp:100, speed:4,  jump:12, damage:10, cost:500,  desc:'Balanced fighter' },
+  hominid:  { name:'Hominid',  emoji:'🟫', color:'#c4a484', hp:120, speed:3.5,jump:11, damage:14, cost:600,  desc:'Powerful brawler' },
+  arachnid: { name:'Arachnid', emoji:'🕷️', color:'#3a2a4a', hp:70,  speed:5.5,jump:13, damage:8,  cost:550,  desc:'Fast climber' },
+  worm:     { name:'Worm',     emoji:'🪱', color:'#d4a373', hp:150, speed:2.5,jump:9,  damage:12, cost:650,  desc:'Tanky and slow' },
+  wasp:     { name:'Wasp',     emoji:'🐝', color:'#f4c430', hp:60,  speed:6,  jump:14, damage:7,  cost:600,  desc:'Agile flier' },
+  golem:    { name:'Golem',    emoji:'🪨', color:'#6b6b6b', hp:200, speed:2,  jump:8,  damage:18, cost:800,  desc:'Walking boulder' },
+  imp:      { name:'Imp',      emoji:'👹', color:'#c0392b', hp:50,  speed:7,  jump:15, damage:6,  cost:500,  desc:'Quick and sneaky' },
+  beast:    { name:'Beast',    emoji:'🐺', color:'#5c3a1e', hp:130, speed:4,  jump:12, damage:13, cost:700,  desc:'Untamed predator' },
+  drakon:   { name:'Drakon',   emoji:'🐉', color:'#a02020', hp:140, speed:3.5,jump:10, damage:15, cost:900,  desc:'Breathes fire' },
+  specter:  { name:'Specter',  emoji:'👻', color:'#9b8fb5', hp:80,  speed:5,  jump:13, damage:9,  cost:750,  desc:'Ethereal being' },
+  brute:    { name:'Brute',    emoji:'🦏', color:'#4a3a2a', hp:180, speed:2.5,jump:9,  damage:17, cost:800,  desc:'Heavy hitter' },
+  sprite:   { name:'Sprite',   emoji:'🧚', color:'#7fc8a9', hp:40,  speed:7.5,jump:16, damage:5,  cost:450,  desc:'Smallest, fastest' },
+};
+
+const WEAPONS = {
+  rifle:       { name:'Rifle',        cost:300, damage:8,  range:1400, fireRate:400,  projSpeed:14, type:'bullet', desc:'Standard issue' },
+  laser:       { name:'Laser Gun',    cost:500, damage:6,  range:1800, fireRate:200,  projSpeed:22, type:'beam',   desc:'Fast and accurate' },
+  flamethrower:{ name:'Flamethrower', cost:400, damage:4,  range:500,  fireRate:100,  projSpeed:8,  type:'flame',  desc:'Close-range fire' },
+  sword:       { name:'Sword',        cost:250, damage:18, range:90,   fireRate:600,  projSpeed:0,  type:'melee',  desc:'High melee damage' },
+  bow:         { name:'Bow',          cost:280, damage:10, range:1500, fireRate:800,  projSpeed:16, type:'arrow',  desc:'Slow but powerful' },
+  cannon:      { name:'Cannon',       cost:600, damage:30, range:1200, fireRate:1500, projSpeed:12, type:'shell',  desc:'Heavy hitter' },
+  crossbow:    { name:'Crossbow',     cost:320, damage:14, range:1600, fireRate:1000, projSpeed:18, type:'bolt',   desc:'Accurate and lethal' },
+  plasma:      { name:'Plasma Rifle', cost:700, damage:12, range:1700, fireRate:300,  projSpeed:20, type:'plasma', desc:'High-tech energy' },
+  shotgun:     { name:'Shotgun',      cost:350, damage:6,  range:600,  fireRate:700,  projSpeed:12, type:'pellet', desc:'5 pellets per shot' },
+  tesla:       { name:'Tesla Coil',   cost:550, damage:10, range:1000, fireRate:500,  projSpeed:16, type:'tesla',  desc:'Chains to nearby' },
+  blade:       { name:'Plasma Blade', cost:450, damage:22, range:100,  fireRate:500,  projSpeed:0,  type:'melee',  desc:'Melee + burn' },
+};
+
+const ENHANCEMENTS = {
+  tentacles:    { name:'Tentacles',    cost:200, desc:'+3 reach on melee' },
+  sting:        { name:'Sting',        cost:250, desc:'Poison: 2 dmg/sec for 3s' },
+  fieryBreath:  { name:'Fiery Breath', cost:350, desc:'Area fire cone, 15 dmg' },
+  shell:        { name:'Shell',        cost:200, desc:'+30 HP, -1 speed' },
+  wings:        { name:'Wings',        cost:300, desc:'Double jump' },
+  camouflage:   { name:'Camouflage',   cost:200, desc:'20% miss chance on enemy' },
+  horns:        { name:'Horns',        cost:250, desc:'Charge: +10 dmg moving' },
+  quills:       { name:'Quills',       cost:200, desc:'Reflect 30% melee dmg' },
+  acidSpit:     { name:'Acid Spit',    cost:250, desc:'Ranged acid projectile' },
+  berserk:      { name:'Berserk',      cost:300, desc:'+50% dmg, -20% HP' },
+  regeneration: { name:'Regeneration', cost:350, desc:'Heal 1 HP/sec' },
+};
+
+const BATTLEFIELDS = {
+  desert: { name:'Desert', bg1:'#e0c896', bg2:'#d4a373', platform:'#a87a4a', accent:'#f4d35e', ground:'#8b5a2b', hazard:'heat' },
+  jungle: { name:'Jungle', bg1:'#2d4a2b', bg2:'#1a3a1a', platform:'#3a2a1a', accent:'#5c8a4a', ground:'#1a2a1a', hazard:'vines' },
+  swamp:  { name:'Swamp',  bg1:'#3a4a3a', bg2:'#2a3a2a', platform:'#2a3a2a', accent:'#5a6a3a', ground:'#1a2a1a', hazard:'slime' },
+};
+
+const MODES = {
+  destruction: { name:'Destruction', desc:'Kill the enemy' },
+  flag:        { name:'Flag Capture', desc:'Grab the flag 3 times' },
+  horde:       { name:'The Horde', desc:'Kill more Hordlings' },
+};
+
+// ===================== GAME STATE =====================
+const state = {
+  screen: 'title',
+  difficulty: null,
+  money: 0,
+  builder: { type:null, weapon:null, enhs:[], budget:0 },
+  battlefield: null,
+  mode: null,
+  playerMonster: null,
+  enemyMonster: null,
+  battle: null,
+  tournament: loadTournament() || { money:5000, wins:0, losses:0, streak:0, corrals:[] },
+  selectedCorralIdx: null,
+};
+
+function loadTournament() {
+  try {
+    const raw = localStorage.getItem('btob_tournament');
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+function saveTournament() {
+  try { localStorage.setItem('btob_tournament', JSON.stringify(state.tournament)); } catch(e) {}
+}
+function hasTournament() { return !!localStorage.getItem('btob_tournament'); }
+
+// ===================== SCREENS =====================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  state.screen = id;
+  window.scrollTo(0,0);
+}
+
+function showHowTo() { showScreen('how-to-screen'); }
+
+// ===================== MENU / DIFFICULTY =====================
+function startGame(difficulty) {
+  state.difficulty = difficulty;
+  state.builder = { type:null, weapon:null, enhs:[], budget: difficulty==='beginner' ? 99999 : 2000 };
+  if (difficulty === 'beginner') {
+    // pre-built monster: tyro with rifle
+    const m = buildMonsterData('tyro', 'rifle', []);
+    state.playerMonster = m;
+    goToBattlefield();
+  } else if (difficulty === 'intermediate') {
+    state.money = state.builder.budget;
+    openBuilder();
+  } else if (difficulty === 'tournament') {
+    if (state.tournament.corrals.length === 0) {
+      // first time, build a monster
+      state.builder.budget = 3000;
+      state.money = state.builder.budget;
+      openBuilder(true);
+    } else {
+      showTournamentHub();
+    }
+  }
+}
+
+function continueTournament() {
+  state.difficulty = 'tournament';
+  showTournamentHub();
+}
+
+function openBuilder(isFirstRecruit=false) {
+  state.builder = { type:null, weapon:null, enhs:[], budget: state.difficulty==='tournament' ? 3000 : 2000 };
+  state.money = state.builder.budget;
+  state._isFirstRecruit = isFirstRecruit;
+  document.getElementById('builder-difficulty-label').textContent =
+    state.difficulty === 'tournament' ? 'Tournament Career - New Recruit' : 'Intermediate Battle';
+  document.getElementById('builder-money').textContent = state.money;
+  renderBuilder();
+  showScreen('builder-screen');
+}
+
+function openBuilderForNew() {
+  if (state.tournament.corrals.length >= 6) {
+    alert('Corrals full (max 6). Release one first.');
+    return;
+  }
+  openBuilder(false);
+}
+
+function cancelBuilder() {
+  if (state.difficulty === 'tournament' && state.tournament.corrals.length > 0) {
+    showTournamentHub();
+  } else if (state.difficulty === 'tournament') {
+    showScreen('title-screen');
+  } else {
+    showScreen('title-screen');
+  }
+}
+
+function renderBuilder() {
+  // Monster picker
+  const mp = document.getElementById('monster-picker');
+  mp.innerHTML = '';
+  Object.entries(MONSTERS).forEach(([k,m]) => {
+    const sel = state.builder.type === k;
+    const canAfford = m.cost <= state.money + (state.builder.type ? MONSTERS[state.builder.type].cost : 0);
+    const div = document.createElement('div');
+    div.className = `card rounded p-2 cursor-pointer text-center text-xs ${sel?'selected':''} ${!canAfford?'opacity-40':''}`;
+    div.innerHTML = `<div class="text-2xl">${m.emoji}</div><div class="font-bold">${m.name}</div><div class="text-yellow-400">◉${m.cost}</div>`;
+    div.onclick = () => { if(canAfford) { state.builder.type = sel ? null : k; renderBuilder(); } };
+    mp.appendChild(div);
+  });
+  // Weapon picker
+  const wp = document.getElementById('weapon-picker');
+  wp.innerHTML = '';
+  Object.entries(WEAPONS).forEach(([k,w]) => {
+    const sel = state.builder.weapon === k;
+    const canAfford = w.cost <= state.money + (state.builder.weapon ? WEAPONS[state.builder.weapon].cost : 0);
+    const div = document.createElement('div');
+    div.className = `card rounded p-2 cursor-pointer text-xs ${sel?'selected':''} ${!canAfford?'opacity-40':''}`;
+    div.innerHTML = `<div class="font-bold">${w.name} <span class="text-yellow-400">◉${w.cost}</span></div><div class="text-slate-400">${w.desc}</div>`;
+    div.onclick = () => { if(canAfford) { state.builder.weapon = sel ? null : k; renderBuilder(); } };
+    wp.appendChild(div);
+  });
+  // Enhancements
+  const ep = document.getElementById('enh-picker');
+  ep.innerHTML = '';
+  Object.entries(ENHANCEMENTS).forEach(([k,e]) => {
+    const sel = state.builder.enhs.includes(k);
+    const atMax = state.builder.enhs.length >= 4;
+    const canAfford = e.cost <= remainingBudget();
+    const div = document.createElement('div');
+    div.className = `card rounded p-2 cursor-pointer text-xs ${sel?'selected':''} ${(!canAfford||atMax)&&!sel?'opacity-40':''}`;
+    div.innerHTML = `<div class="font-bold">${e.name} <span class="text-yellow-400">◉${e.cost}</span></div><div class="text-slate-400">${e.desc}</div>`;
+    div.onclick = () => {
+      if(sel) { state.builder.enhs = state.builder.enhs.filter(x=>x!==k); renderBuilder(); return; }
+      if(atMax) return;
+      if(!canAfford) return;
+      state.builder.enhs.push(k); renderBuilder();
+    };
+    ep.appendChild(div);
+  });
+  updatePreview();
+}
+
+function remainingBudget() {
+  let used = 0;
+  if (state.builder.type) used += MONSTERS[state.builder.type].cost;
+  if (state.builder.weapon) used += WEAPONS[state.builder.weapon].cost;
+  state.builder.enhs.forEach(e => used += ENHANCEMENTS[e].cost);
+  return state.builder.budget - used;
+}
+
+function updatePreview() {
+  const b = state.builder;
+  document.getElementById('builder-money').textContent = remainingBudget();
+  if (b.type) {
+    const m = MONSTERS[b.type];
+    document.getElementById('preview-emoji').textContent = m.emoji;
+    document.getElementById('preview-name').textContent = m.name;
+    document.getElementById('preview-type').textContent = m.desc;
+    let hp = m.hp, spd = m.speed, jmp = m.jump, dmg = m.damage;
+    b.enhs.forEach(e => {
+      if (e==='shell') { hp += 30; spd -= 1; }
+      if (e==='berserk') { hp = Math.floor(hp*0.8); dmg = Math.floor(dmg*1.5); }
+    });
+    document.getElementById('stat-hp').textContent = hp;
+    document.getElementById('stat-speed').textContent = spd;
+    document.getElementById('stat-jump').textContent = jmp;
+    document.getElementById('stat-dmg').textContent = dmg;
+  } else {
+    document.getElementById('preview-emoji').textContent = '?';
+    document.getElementById('preview-name').textContent = 'No monster';
+    document.getElementById('preview-type').textContent = 'Pick a type below';
+  }
+  document.getElementById('preview-weapon').textContent = b.weapon ? WEAPONS[b.weapon].name : '—';
+  document.getElementById('preview-enhs').textContent = b.enhs.length ? b.enhs.map(e=>ENHANCEMENTS[e].name).join(', ') : '—';
+  const ready = b.type && b.weapon;
+  const btn = document.getElementById('builder-confirm');
+  btn.disabled = !ready;
+  btn.textContent = ready ? 'Confirm & Pick Battlefield →' : 'Pick type + weapon to continue';
+}
+
+function buildMonsterData(type, weapon, enhs) {
+  const m = MONSTERS[type];
+  const w = WEAPONS[weapon];
+  let hp = m.hp, spd = m.speed, jmp = m.jump, dmg = m.damage;
+  if (enhs.includes('shell')) { hp += 30; spd -= 1; }
+  if (enhs.includes('berserk')) { hp = Math.floor(hp*0.8); dmg = Math.floor(dmg*1.5); }
+  return {
+    type, name: m.name, emoji: m.emoji, color: m.color,
+    hp, maxHp: hp, spd, jmp, dmg,
+    weapon: weapon, weaponData: w,
+    enhs: [...enhs],
+    alive: true,
+  };
+}
+
+function confirmBuilder() {
+  if (!state.builder.type || !state.builder.weapon) return;
+  state.playerMonster = buildMonsterData(state.builder.type, state.builder.weapon, state.builder.enhs);
+  if (state.difficulty === 'tournament' && !state._isFirstRecruit && state.selectedCorralIdx === null) {
+    // new recruit
+    addToCorrals(state.playerMonster);
+    state.selectedCorralIdx = state.tournament.corrals.length - 1;
+    showTournamentHub();
+    return;
+  }
+  if (state._isFirstRecruit) {
+    addToCorrals(state.playerMonster);
+    state.selectedCorralIdx = 0;
+    showTournamentHub();
+    return;
+  }
+  goToBattlefield();
+}
+
+function goToBattlefield() {
+  const bp = document.getElementById('battlefield-picker');
+  bp.innerHTML = '';
+  Object.entries(BATTLEFIELDS).forEach(([k,bf]) => {
+    const div = document.createElement('div');
+    div.className = 'card rounded-xl p-6 cursor-pointer hover:border-yellow-400';
+    div.style.background = `linear-gradient(135deg, ${bf.bg1}, ${bf.bg2})`;
+    div.innerHTML = `<div class="text-3xl mb-2">${k==='desert'?'🏜️':k==='jungle'?'🌴':'🐊'}</div><div class="text-2xl font-bold text-white drop-shadow">${bf.name}</div><div class="text-sm text-white/80">Hazard: ${bf.hazard}</div>`;
+    div.onclick = () => selectBattlefield(k);
+    bp.appendChild(div);
+  });
+  showScreen('battlefield-screen');
+}
+
+function selectBattlefield(k) {
+  state.battlefield = k;
+  document.getElementById('mode-battlefield-label').textContent = BATTLEFIELDS[k].name;
+  showScreen('mode-screen');
+}
+
+function selectMode(m) {
+  state.mode = m;
+  startBattle();
+}
+
+// ===================== TOURNAMENT HUB =====================
+function showTournamentHub() {
+  const t = state.tournament;
+  document.getElementById('tour-money').textContent = t.money;
+  document.getElementById('tour-wins').textContent = t.wins;
+  document.getElementById('tour-losses').textContent = t.losses;
+  document.getElementById('tour-streak').textContent = t.streak;
+  document.getElementById('corrals-count').textContent = t.corrals.length;
+  const list = document.getElementById('corrals-list');
+  list.innerHTML = '';
+  if (t.corrals.length === 0) {
+    list.innerHTML = '<div class="text-slate-400 text-sm text-center py-4">No monsters yet. Recruit one!</div>';
+  }
+  t.corrals.forEach((m, i) => {
+    const sel = state.selectedCorralIdx === i;
+    const div = document.createElement('div');
+    div.className = `card rounded-lg p-3 flex items-center gap-3 cursor-pointer ${sel?'selected':''}`;
+    div.innerHTML = `
+      <div class="text-3xl">${m.emoji}</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold truncate">${m.name} <span class="text-xs text-slate-400">HP ${m.maxHp} | ${WEAPONS[m.weapon].name}</span></div>
+        <div class="text-xs text-slate-400 truncate">${m.enhs.length ? m.enhs.map(e=>ENHANCEMENTS[e].name).join(', ') : 'No enhancements'}</div>
+        <div class="w-full h-1.5 bg-slate-800 rounded mt-1 overflow-hidden"><div class="h-full ${m.hp/m.maxHp>0.5?'bg-green-500':m.hp/m.maxHp>0.25?'bg-yellow-500':'bg-red-500'}" style="width:${(m.hp/m.maxHp)*100}%"></div></div>
+      </div>
+      <div class="flex flex-col gap-1">
+        ${sel?'<span class="text-xs text-yellow-400">✓</span>':''}
+        <button onclick="event.stopPropagation();healMonster(${i})" class="text-xs bg-green-700 hover:bg-green-600 px-2 py-1 rounded">Heal ◉${Math.floor(m.maxHp*0.3)}</button>
+        <button onclick="event.stopPropagation();releaseMonster(${i})" class="text-xs bg-red-700 hover:bg-red-600 px-2 py-1 rounded">Release</button>
+      </div>
+    `;
+    div.onclick = () => { state.selectedCorralIdx = i; showTournamentHub(); };
+    list.appendChild(div);
+  });
+  const fightBtn = document.getElementById('tour-fight-btn');
+  if (state.selectedCorralIdx !== null && t.corrals[state.selectedCorralIdx]) {
+    const m = t.corrals[state.selectedCorralIdx];
+    fightBtn.disabled = false;
+    fightBtn.textContent = `⚔ Send ${m.name} into Battle`;
+  } else {
+    fightBtn.disabled = true;
+    fightBtn.textContent = 'Select a Monster First';
+  }
+  showScreen('tournament-screen');
+}
+
+function healMonster(i) {
+  const m = state.tournament.corrals[i];
+  const cost = Math.floor(m.maxHp * 0.3);
+  if (state.tournament.money < cost) { alert('Not enough money'); return; }
+  state.tournament.money -= cost;
+  m.hp = m.maxHp;
+  saveTournament();
+  showTournamentHub();
+}
+
+function releaseMonster(i) {
+  if (!confirm('Release this monster from your corrals?')) return;
+  state.tournament.corrals.splice(i, 1);
+  if (state.selectedCorralIdx === i) state.selectedCorralIdx = null;
+  if (state.selectedCorralIdx > i) state.selectedCorralIdx--;
+  saveTournament();
+  showTournamentHub();
+}
+
+function addToCorrals(m) {
+  state.tournament.corrals.push(m);
+  saveTournament();
+}
+
+function tourNextBattle() {
+  if (state.selectedCorralIdx === null) return;
+  const m = state.tournament.corrals[state.selectedCorralIdx];
+  if (!m || m.hp <= 0) { alert('This monster is down. Heal or pick another.'); return; }
+  state.playerMonster = m;
+  goToBattlefield();
+}
+
+function resetTournament() {
+  if (!confirm('Reset entire tournament save? This cannot be undone.')) return;
+  localStorage.removeItem('btob_tournament');
+  state.tournament = { money:5000, wins:0, losses:0, streak:0, corrals:[] };
+  showScreen('title-screen');
+}
+
+// ===================== BATTLE ENGINE =====================
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+let battleAnim = null;
+const keys = {};
+let shootHeld = false;
+const keyMap = { 'ArrowLeft':'left','ArrowRight':'right','ArrowUp':'up','KeyA':'left','KeyD':'right','KeyW':'up','Space':'up' };
+
+function setKey(k,v) { keys[k] = v; if (k==='up' && v) tryJump(); if (k==='shoot') shootHeld = v; }
+function shootPress() { shootHeld = true; tryShoot(); }
+function shootRelease() { shootHeld = false; }
+
+window.addEventListener('keydown', e => {
+  const k = keyMap[e.code];
+  if (k) { keys[k] = true; if (k==='up') tryJump(); e.preventDefault(); }
+  if (e.code === 'Space') { shootHeld = true; tryShoot(); e.preventDefault(); }
+  if (e.code === 'Escape') { if (state.screen==='battle-screen') endBattle(false, true); }
+});
+window.addEventListener('keyup', e => {
+  const k = keyMap[e.code];
+  if (k) keys[k] = false;
+  if (e.code === 'Space') shootHeld = false;
+});
+canvas.addEventListener('mousedown', () => { shootHeld = true; tryShoot(); });
+canvas.addEventListener('mouseup', () => { shootHeld = false; });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); shootHeld = true; tryShoot(); }, {passive:false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); shootHeld = false; }, {passive:false});
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function startBattle() {
+  state.battle = {
+    player: makeFighter(state.playerMonster, true),
+    enemy: makeFighter(pickEnemy(), false),
+    bullets: [],
+    particles: [],
+    powerups: [],
+    hordlings: [],
+    flags: { player:0, enemy:0 },
+    kills: { player:0, enemy:0 },
+    flag: { x: 0, y: 0, holder: null, timer: 0 },
+    score: { player:0, enemy:0 },
+    time: state.mode === 'horde' ? 90 : 75,
+    elapsed: 0,
+    camera: { x: 0, y: 0 },
+    flagReturned: { player: true, enemy: true },
+    lastShoot: 0,
+    lastEnemyShoot: 0,
+    dmgDealt: 0,
+    dmgTaken: 0,
+    paused: false,
+    result: null,
+  };
+  setupArena();
+  state.screen = 'battle-screen';
+  showScreen('battle-screen');
+  document.getElementById('mode-label').textContent = BATTLEFIELDS[state.battlefield].name + ' - ' + MODES[state.mode].name;
+  document.getElementById('score-display').textContent = '0 : 0';
+  document.getElementById('time-display').textContent = state.battle.time;
+  document.getElementById('enemy-info').textContent = state.battle.enemy.name + ' / ' + WEAPONS[state.battle.enemy.weapon].name;
+  if (state.mode === 'horde') spawnHordlings();
+  if (battleAnim) cancelAnimationFrame(battleAnim);
+  battleAnim = requestAnimationFrame(battleLoop);
+}
+
+function makeFighter(m, isPlayer) {
+  return {
+    ...m,
+    x: isPlayer ? 400 : 1600,
+    y: 400,
+    vx: 0, vy: 0,
+    w: 48, h: 64,
+    facing: isPlayer ? 1 : -1,
+    onGround: false,
+    jumps: 0,
+    lastShot: 0,
+    isPlayer,
+    poisonTimer: 0,
+    invuln: 0,
+    flash: 0,
+    animTime: Math.random() * 1000,
+  };
+}
+
+function pickEnemy() {
+  // Pick a random monster + weapon
+  const types = Object.keys(MONSTERS);
+  const weapons = Object.keys(WEAPONS);
+  const t = types[Math.floor(Math.random()*types.length)];
+  const w = weapons[Math.floor(Math.random()*weapons.length)];
+  return buildMonsterData(t, w, []);
+}
+
+let platforms = [];
+let pickups = [];
+
+function setupArena() {
+  platforms = [
+    {x:0, y:600, w:2400, h:50}, // ground
+    {x:300, y:480, w:200, h:20},
+    {x:600, y:400, w:200, h:20},
+    {x:950, y:480, w:200, h:20},
+    {x:1200, y:380, w:200, h:20},
+    {x:1500, y:480, w:200, h:20},
+    {x:1800, y:400, w:200, h:20},
+    {x:2050, y:480, w:200, h:20},
+  ];
+  pickups = [];
+  for (let i=0; i<4; i++) {
+    pickups.push({x: 400 + i*500, y: 540, type: ['health','ammo','damage','shield'][i%4], taken: false});
+  }
+  // Position flag
+  if (state.mode === 'flag') {
+    state.battle.flag.x = 1200;
+    state.battle.flag.y = 560;
+  }
+  // Place hordlings
+  if (state.mode === 'horde') {
+    // already spawned
+  }
+}
+
+function spawnHordlings() {
+  state.battle.hordlings = [];
+  for (let i=0; i<10; i++) {
+    state.battle.hordlings.push({
+      x: 200 + Math.random()*2000, y: 540,
+      vx: (Math.random()-0.5)*2,
+      hp: 20, maxHp: 20,
+      w: 24, h: 30,
+      flash: 0,
+    });
+  }
+}
+
+// ===================== PHYSICS =====================
+function tryJump() {
+  const p = state.battle.player;
+  if (!p) return;
+  const maxJumps = p.enhs.includes('wings') ? 2 : 1;
+  if (p.jumps < maxJumps) {
+    p.vy = -p.jmp;
+    p.jumps++;
+    p.onGround = false;
+  }
+}
+
+function tryShoot() {
+  const p = state.battle.player;
+  if (!p || !p.alive) return;
+  const w = p.weaponData;
+  const now = performance.now();
+  if (now - p.lastShot < w.fireRate) return;
+  p.lastShot = now;
+  spawnBullet(p, w);
+}
+
+function spawnBullet(owner, w) {
+  const ox = owner.facing > 0 ? owner.x + owner.w : owner.x;
+  const oy = owner.y + owner.h/2;
+  if (w.type === 'melee') {
+    // instant melee
+    const target = owner.isPlayer ? state.battle.enemy : state.battle.player;
+    const dx = target.x + target.w/2 - ox;
+    if (Math.abs(dx) < (w.range + (target===owner?0:0)) && Math.abs(target.y+target.h/2 - oy) < 60) {
+      hitTarget(target, owner, w);
+    }
+    // swing particle
+    for (let i=0; i<3; i++) state.battle.particles.push({x:ox+owner.facing*20,y:oy-10+i*15,vx:owner.facing*2,vy:0,life:8,color:'#fbbf24'});
+    return;
+  }
+  if (w.type === 'pellet') {
+    for (let i=-2; i<=2; i++) {
+      state.battle.bullets.push({
+        x: ox, y: oy + i*5, vx: owner.facing * w.projSpeed, vy: 0,
+        owner, w, life: w.range/w.projSpeed, dmg: w.damage, color:'#fbbf24', type:'pellet'
+      });
+    }
+    return;
+  }
+  const color = w.type==='flame' ? '#ff6b35' : w.type==='plasma' ? '#a78bfa' : w.type==='beam' ? '#06b6d4' : w.type==='tesla' ? '#67e8f9' : w.type==='arrow' ? '#d4a373' : w.type==='bolt' ? '#94a3b8' : w.type==='shell' ? '#1e293b' : '#facc15';
+  state.battle.bullets.push({
+    x: ox, y: oy, vx: owner.facing * w.projSpeed, vy: 0,
+    owner, w, life: w.range/w.projSpeed, dmg: w.damage, color, type: w.type
+  });
+}
+
+function hitTarget(target, attacker, w) {
+  if (!target.alive || target.invuln > 0) return;
+  let dmg = w.damage + attacker.dmg;
+  // Camouflage miss chance
+  if (target.enhs.includes('camouflage') && Math.random() < 0.2) return;
+  // Quills reflect
+  if (target.enhs.includes('quills') && w.type === 'melee' && Math.random() < 0.3) {
+    attacker.hp -= Math.floor(dmg*0.3);
+    if (attacker.hp < 0) attacker.hp = 0;
+    spawnParticles(attacker.x+attacker.w/2, attacker.y+attacker.h/2, '#a78bfa', 5);
+  }
+  // Poison (sting)
+  if (attacker.enhs.includes('sting') && w.type === 'melee') {
+    target.poisonTimer = 180; // 3s at 60fps
+  }
+  target.hp -= dmg;
+  target.flash = 8;
+  if (target.hp < 0) target.hp = 0;
+  if (attacker.isPlayer) state.battle.dmgDealt += dmg;
+  else state.battle.dmgTaken += dmg;
+  spawnParticles(target.x+target.w/2, target.y+target.h/2, '#ef4444', 8);
+  if (target.hp <= 0) {
+    target.alive = false;
+    onKill(target, attacker);
+  }
+}
+
+function onKill(victim, killer) {
+  if (state.mode === 'destruction') {
+    if (victim.isPlayer) endBattle(false);
+    else endBattle(true);
+  }
+}
+
+function spawnParticles(x, y, color, n) {
+  for (let i=0; i<n; i++) {
+    state.battle.particles.push({
+      x, y, vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6,
+      life:20+Math.random()*15, color
+    });
+  }
+}
+
+// ===================== AI =====================
+function enemyAI() {
+  const e = state.battle.enemy;
+  const p = state.battle.player;
+  if (!e.alive || !p.alive) return;
+  const dx = p.x - e.x;
+  const dist = Math.abs(dx);
+  e.facing = dx > 0 ? 1 : -1;
+  // movement
+  if (dist > 250) { e.vx = e.facing * e.spd; }
+  else if (dist < 150) { e.vx = -e.facing * e.spd * 0.7; }
+  else { e.vx = 0; }
+  // jump if blocked
+  if (e.onGround && Math.random() < 0.01) { e.vy = -e.jmp; e.onGround = false; e.jumps = 1; }
+  // shoot
+  const w = e.weaponData;
+  const now = performance.now();
+  if (dist < w.range && Math.random() < 0.04) {
+    if (now - e.lastShot > w.fireRate) {
+      e.lastShot = now;
+      spawnBullet(e, w);
+    }
+  }
+}
+
+// ===================== MAIN LOOP =====================
+let lastTime = 0;
+function battleLoop(ts) {
+  const b = state.battle;
+  if (!b) return;
+  const dt = Math.min(50, ts - lastTime);
+  lastTime = ts;
+  b.elapsed += dt;
+  // Time
+  if (b.elapsed > 1000) {
+    b.elapsed -= 1000;
+    b.time--;
+    document.getElementById('time-display').textContent = b.time;
+    if (b.time <= 0) endBattle(b.score.player > b.score.enemy);
+  }
+  // Player input
+  const p = b.player;
+  if (p.alive) {
+    if (keys.left) p.vx = -p.spd;
+    else if (keys.right) p.vx = p.spd;
+    else p.vx *= 0.7;
+    if (shootHeld) tryShoot();
+  } else p.vx = 0;
+
+  // Apply movement
+  [p, b.enemy].forEach(f => {
+    if (!f.alive) return;
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vy += 0.6; // gravity
+    if (f.invuln > 0) f.invuln--;
+    if (f.flash > 0) f.flash--;
+    if (f.poisonTimer > 0) {
+      f.poisonTimer--;
+      if (f.poisonTimer % 60 === 0) {
+        f.hp -= 2;
+        spawnParticles(f.x+f.w/2, f.y+f.h/2, '#84cc16', 3);
+        if (f.hp <= 0) { f.hp = 0; f.alive = false; onKill(f, f.isPlayer ? b.enemy : p); }
+      }
+    }
+    // Regen
+    if (f.enhs.includes('regeneration') && f.alive && f.hp < f.maxHp && b.elapsed % 60 < 17) {
+      f.hp = Math.min(f.maxHp, f.hp + 1);
+    }
+    // World bounds
+    f.x = Math.max(0, Math.min(2400 - f.w, f.x));
+    // Platform collision
+    f.onGround = false;
+    platforms.forEach(pl => {
+      if (f.x + f.w > pl.x && f.x < pl.x + pl.w) {
+        if (f.y + f.h > pl.y && f.y + f.h < pl.y + pl.h + 20 && f.vy >= 0) {
+          f.y = pl.y - f.h;
+          f.vy = 0;
+          f.onGround = true;
+          f.jumps = 0;
+        }
+      }
+    });
+  });
+
+  // Enemy AI
+  enemyAI();
+
+  // Update bullets
+  b.bullets = b.bullets.filter(bul => {
+    bul.x += bul.vx;
+    bul.y += bul.vy;
+    bul.life--;
+    if (bul.x < 0 || bul.x > 2400) return false;
+    // hit detection
+    const target = bul.owner.isPlayer ? b.enemy : p;
+    if (target.alive && rectHit(bul, target)) {
+      hitTarget(target, bul.owner, bul.w);
+      // special: tesla chain
+      if (bul.w.type === 'tesla') {
+        spawnParticles(bul.x, bul.y, bul.color, 12);
+      }
+      return false;
+    }
+    // Hordling hits
+    if (state.mode === 'horde' && bul.owner.isPlayer) {
+      for (let h of b.hordlings) {
+        if (h.hp > 0 && rectHit(bul, h)) {
+          h.hp -= bul.dmg;
+          h.flash = 6;
+          spawnParticles(h.x+h.w/2, h.y+h.h/2, '#ef4444', 4);
+          if (h.hp <= 0) {
+            h.hp = 0;
+            b.kills.player++;
+            b.score.player++;
+            document.getElementById('score-display').textContent = `${b.score.player} : ${b.score.enemy}`;
+            if (Math.random() < 0.3) {
+              // drop pickup
+              pickups.push({x: h.x, y: 540, type: ['health','damage'][Math.floor(Math.random()*2)], taken: false});
+            }
+          }
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+
+  // Update particles
+  b.particles = b.particles.filter(pp => {
+    pp.x += pp.vx;
+    pp.y += pp.vy;
+    pp.vy += 0.3;
+    pp.life--;
+    return pp.life > 0;
+  });
+
+  // Hordling AI (move toward players, simple)
+  if (state.mode === 'horde') {
+    b.hordlings.forEach(h => {
+      if (h.hp <= 0) return;
+      // move toward nearest fighter
+      const target = (b.player.alive && b.enemy.alive) ? (Math.random()<0.5 ? b.player : b.enemy) : (b.player.alive ? b.player : b.enemy);
+      const dx = target.x - h.x;
+      h.x += Math.sign(dx) * 1.2;
+      h.x = Math.max(0, Math.min(2400-h.w, h.x));
+      h.y = 540;
+      if (target.alive && rectHit(h, target)) {
+        if (target.invuln <= 0) {
+          target.hp -= 1;
+          target.invuln = 30;
+          if (target.isPlayer) b.dmgTaken += 1;
+          else b.dmgDealt += 1;
+          if (target.hp <= 0) { target.hp = 0; target.alive = false; onKill(target, h); }
+        }
+      }
+    });
+    // respawn
+    if (b.hordlings.filter(h=>h.hp>0).length < 8) {
+      b.hordlings.push({ x: Math.random()<0.5?100:2300, y:540, vx:0, hp:20, maxHp:20, w:24, h:30, flash:0 });
+    }
+  }
+
+  // Flag mode logic
+  if (state.mode === 'flag') {
+    const f = b.flag;
+    // Check if player/enemy picks up flag
+    if (f.holder === null) {
+      if (p.alive && Math.abs(p.x+p.w/2 - f.x) < 40 && Math.abs(p.y+p.h/2 - f.y) < 60) f.holder = 'player';
+      else if (b.enemy.alive && Math.abs(b.enemy.x+b.enemy.w/2 - f.x) < 40 && Math.abs(b.enemy.y+b.enemy.h/2 - f.y) < 60) f.holder = 'enemy';
+    }
+    if (f.holder === 'player') {
+      f.x = p.x + p.w/2; f.y = p.y;
+      // Score if returned to base
+      if (p.x < 150) {
+        b.flags.player++;
+        b.score.player++;
+        document.getElementById('score-display').textContent = `${b.score.player} : ${b.score.enemy}`;
+        f.holder = null;
+        f.x = 1200; f.y = 560;
+        if (b.flags.player >= 3) endBattle(true);
+      }
+    } else if (f.holder === 'enemy') {
+      f.x = b.enemy.x + b.enemy.w/2; f.y = b.enemy.y;
+      if (b.enemy.x > 2250) {
+        b.flags.enemy++;
+        b.score.enemy++;
+        document.getElementById('score-display').textContent = `${b.score.player} : ${b.score.enemy}`;
+        f.holder = null;
+        f.x = 1200; f.y = 560;
+        if (b.flags.enemy >= 3) endBattle(false);
+      }
+    }
+  }
+
+  // Pickups
+  pickups.forEach(pk => {
+    if (pk.taken) return;
+    if (p.alive && Math.abs(p.x+p.w/2 - pk.x) < 30 && Math.abs(p.y+p.h/2 - pk.y) < 40) {
+      pk.taken = true;
+      if (pk.type === 'health') p.hp = Math.min(p.maxHp, p.hp + 30);
+      if (pk.type === 'ammo') {/* unlimited in this game */}
+      if (pk.type === 'damage') p.dmg = Math.floor(p.dmg * 1.3);
+      if (pk.type === 'shield') p.invuln = 180;
+      spawnParticles(pk.x, pk.y, '#fbbf24', 10);
+    }
+  });
+
+  // Camera
+  b.camera.x = (p.x + p.w/2) - canvas.width/2;
+  b.camera.x = Math.max(0, Math.min(2400 - canvas.width, b.camera.x));
+
+  // UI
+  document.getElementById('player-hp-bar').style.width = (p.alive ? (p.hp/p.maxHp)*100 : 0) + '%';
+  document.getElementById('enemy-hp-bar').style.width = (b.enemy.alive ? (b.enemy.hp/b.enemy.maxHp)*100 : 0) + '%';
+
+  // Render
+  render();
+  battleAnim = requestAnimationFrame(battleLoop);
+}
+
+function rectHit(a, b) {
+  // bullet-style small box; generous target hitbox (+15px padding on each side)
+  const ax = a.x - 4, aw = (a.w||8) + 8;
+  const ay = a.y - 4, ah = (a.h||8) + 8;
+  const pad = 15;
+  return ax < b.x + b.w + pad && ax + aw > b.x - pad && ay < b.y + b.h + pad && ay + ah > b.y - pad;
+}
+
+function render() {
+  const b = state.battle;
+  const bf = BATTLEFIELDS[state.battlefield];
+  ctx.fillStyle = bf.bg1;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Parallax background
+  drawBackground(bf);
+  ctx.save();
+  ctx.translate(-b.camera.x, 0);
+  // Platforms
+  platforms.forEach(pl => {
+    ctx.fillStyle = bf.platform;
+    ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
+    ctx.fillStyle = bf.accent;
+    ctx.fillRect(pl.x, pl.y, pl.w, 3);
+  });
+  // Pickups
+  pickups.forEach(pk => {
+    if (pk.taken) return;
+    const colors = { health:'#22c55e', ammo:'#facc15', damage:'#ef4444', shield:'#3b82f6' };
+    ctx.fillStyle = colors[pk.type] || '#fff';
+    ctx.beginPath();
+    ctx.arc(pk.x, pk.y, 10, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(pk.type[0].toUpperCase(), pk.x, pk.y+4);
+  });
+  // Flag
+  if (state.mode === 'flag') {
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(b.flag.x-2, b.flag.y-30, 4, 30);
+    ctx.fillStyle = f.holder === 'player' ? '#3b82f6' : f.holder === 'enemy' ? '#ef4444' : '#fbbf24';
+    ctx.fillRect(b.flag.x, b.flag.y-30, 20, 14);
+  }
+  // Hordlings
+  if (state.mode === 'horde') {
+    b.hordlings.forEach(h => {
+      if (h.hp <= 0) return;
+      ctx.fillStyle = h.flash>0 ? '#fff' : '#4a7c4a';
+      ctx.fillRect(h.x, h.y, h.w, h.h);
+      ctx.fillStyle = '#a02020';
+      ctx.fillRect(h.x+2, h.y-6, h.w-4, 3);
+    });
+  }
+  // Player
+  drawFighter(b.player, bf);
+  // Enemy
+  drawFighter(b.enemy, bf);
+  // Bullets
+  b.bullets.forEach(bul => {
+    ctx.fillStyle = bul.color;
+    if (bul.type === 'flame') {
+      ctx.beginPath(); ctx.arc(bul.x, bul.y, 6, 0, Math.PI*2); ctx.fill();
+    } else if (bul.type === 'plasma') {
+      ctx.shadowColor = bul.color; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(bul.x, bul.y, 5, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    } else if (bul.type === 'shell') {
+      ctx.fillRect(bul.x-4, bul.y-4, 8, 8);
+    } else {
+      ctx.beginPath(); ctx.arc(bul.x, bul.y, 3, 0, Math.PI*2); ctx.fill();
+    }
+  });
+  // Particles
+  b.particles.forEach(pp => {
+    ctx.globalAlpha = pp.life/30;
+    ctx.fillStyle = pp.color;
+    ctx.fillRect(pp.x-2, pp.y-2, 4, 4);
+  });
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  // HUD on canvas (already in DOM, this is fallback)
+}
+
+function drawBackground(bf) {
+  // simple layered shapes
+  ctx.fillStyle = bf.bg2;
+  for (let i=0; i<20; i++) {
+    const x = (i*180 - (state.battle.camera.x*0.3)%180);
+    ctx.beginPath();
+    ctx.arc(x, canvas.height*0.7, 60, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.fillStyle = bf.ground;
+  ctx.fillRect(0, canvas.height-30, canvas.width, 30);
+}
+
+function drawFighter(f, bf) {
+  if (!f) return;
+  const PX = 4;
+  ctx.save();
+  ctx.translate(f.x + f.w/2, f.y + f.h);
+  if (f.flash > 0) ctx.globalAlpha = 0.6 + 0.4*Math.sin(f.flash*0.8);
+  if (f.invuln > 0 && f.invuln%4<2) ctx.globalAlpha *= 0.4;
+  ctx.scale(f.facing, 1);
+  const t = (f.animTime||0) + performance.now()/1000;
+  const walking = f.onGround && Math.abs(f.vx) > 0.5;
+  const bob = walking ? Math.abs(Math.sin(t*10)) * 1.5 : Math.sin(t*2)*0.5;
+  ctx.translate(0, -bob);
+  const p = (x, y, w, h, c) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(Math.floor(x*PX), Math.floor(-(y+h)*PX), w*PX, h*PX);
+  };
+
+  switch(f.type) {
+    case 'tyro': {
+      p(2, 0, 3, 1, '#0a0a0a'); p(7, 0, 3, 1, '#0a0a0a');
+      p(2, 1, 3, 3, '#1e3a5f'); p(7, 1, 3, 3, '#1e3a5f');
+      p(2, 4, 8, 5, '#3b82f6');
+      p(2, 4, 8, 1, '#60a5fa');
+      p(2, 8, 8, 1, '#1e40af');
+      p(0, 4, 2, 4, '#3b82f6'); p(10, 4, 2, 4, '#3b82f6');
+      p(0, 8, 2, 1, '#fde68a'); p(10, 8, 2, 1, '#fde68a');
+      p(3, 9, 6, 4, '#fde68a');
+      p(3, 9, 6, 1, '#fef3c7');
+      p(3, 12, 6, 1, '#d4a373');
+      p(5, 11, 1, 1, '#1a1a1a'); p(7, 11, 1, 1, '#1a1a1a');
+      p(3, 9, 6, 1, '#5c3a1e');
+      break;
+    }
+    case 'hominid': {
+      p(1, 0, 3, 1, '#0a0a0a'); p(8, 0, 3, 1, '#0a0a0a');
+      p(1, 1, 3, 3, '#5c3a1e'); p(8, 1, 3, 3, '#5c3a1e');
+      p(1, 4, 10, 6, '#6b4423');
+      p(1, 4, 10, 1, '#8b5a2b');
+      p(1, 9, 10, 1, '#3a2a1a');
+      p(-1, 5, 2, 5, '#5c3a1e'); p(11, 5, 2, 5, '#5c3a1e');
+      p(-1, 10, 2, 1, '#3a2a1a'); p(11, 10, 2, 1, '#3a2a1a');
+      p(2, 10, 8, 3, '#a87a4a');
+      p(2, 10, 8, 1, '#c4a484');
+      p(2, 10, 8, 1, '#3a2a1a');
+      p(4, 12, 1, 1, '#fff'); p(7, 12, 1, 1, '#fff');
+      p(4, 12, 1, 1, '#000'); p(7, 12, 1, 1, '#000');
+      p(4, 13, 4, 1, '#1a1a1a');
+      p(4, 13, 1, 1, '#fff'); p(7, 13, 1, 1, '#fff');
+      break;
+    }
+    case 'arachnid': {
+      const lY = [3,5,7,9];
+      lY.forEach(y => {
+        p(-1, y, 1, 1, '#0a0a0a'); p(-2, y+1, 1, 1, '#0a0a0a');
+        p(12, y, 1, 1, '#0a0a0a'); p(13, y+1, 1, 1, '#0a0a0a');
+      });
+      p(3, 4, 6, 6, '#3a2a4a');
+      p(3, 4, 6, 1, '#5b3a6b');
+      p(3, 9, 6, 1, '#1a0a2a');
+      p(4, 2, 4, 2, '#2a1a3a');
+      p(4, 3, 1, 1, '#f00'); p(5, 3, 1, 1, '#ff0');
+      p(6, 3, 1, 1, '#ff0'); p(7, 3, 1, 1, '#f00');
+      p(4, 4, 1, 1, '#ff0'); p(7, 4, 1, 1, '#ff0');
+      p(5, 5, 1, 1, '#fff'); p(6, 5, 1, 1, '#fff');
+      break;
+    }
+    case 'worm': {
+      p(1, 0, 10, 2, '#a87a4a');
+      p(1, 2, 10, 2, '#8b5a2b');
+      p(1, 4, 10, 2, '#a87a4a');
+      p(1, 6, 10, 2, '#8b5a2b');
+      p(1, 8, 10, 2, '#a87a4a');
+      p(1, 10, 10, 3, '#b8804a');
+      p(1, 10, 10, 1, '#d4a373');
+      p(3, 11, 1, 1, '#f00'); p(7, 11, 1, 1, '#f00');
+      p(4, 13, 1, 1, '#fff'); p(5, 13, 1, 1, '#fff');
+      p(6, 13, 1, 1, '#fff'); p(7, 13, 1, 1, '#fff');
+      break;
+    }
+    case 'wasp': {
+      p(5, 3, 2, 1, '#0a0a0a');
+      p(4, 4, 4, 1, '#f4c430');
+      p(4, 5, 4, 1, '#0a0a0a');
+      p(4, 6, 4, 1, '#f4c430');
+      p(4, 7, 4, 1, '#0a0a0a');
+      p(4, 8, 4, 1, '#f4c430');
+      p(4, 9, 4, 1, '#0a0a0a');
+      p(4, 10, 4, 1, '#f4c430');
+      p(4, 11, 4, 1, '#0a0a0a');
+      p(4, 12, 4, 2, '#0a0a0a');
+      p(4, 12, 4, 1, '#3a3a3a');
+      p(5, 13, 1, 1, '#f00'); p(6, 13, 1, 1, '#f00');
+      p(4, 14, 1, 1, '#0a0a0a'); p(7, 14, 1, 1, '#0a0a0a');
+      p(3, 15, 1, 1, '#0a0a0a'); p(8, 15, 1, 1, '#0a0a0a');
+      ctx.globalAlpha *= 0.45;
+      p(0, 6, 3, 3, '#ffffff');
+      p(9, 6, 3, 3, '#ffffff');
+      ctx.globalAlpha /= 0.45;
+      break;
+    }
+    case 'golem': {
+      p(1, 0, 3, 1, '#0a0a0a'); p(8, 0, 3, 1, '#0a0a0a');
+      p(1, 1, 3, 3, '#4a4a4a'); p(8, 1, 3, 3, '#4a4a4a');
+      p(1, 4, 10, 6, '#6b6b6b');
+      p(1, 4, 10, 1, '#8a8a8a');
+      p(1, 9, 10, 1, '#3a3a3a');
+      p(4, 5, 1, 2, '#3a3a3a'); p(7, 6, 1, 2, '#3a3a3a');
+      p(-1, 5, 2, 4, '#5a5a5a'); p(11, 5, 2, 4, '#5a5a5a');
+      p(-1, 9, 2, 1, '#3a3a3a'); p(11, 9, 2, 1, '#3a3a3a');
+      p(3, 10, 6, 3, '#5a5a5a');
+      p(3, 10, 6, 1, '#7a7a7a');
+      p(5, 12, 1, 1, '#f00'); p(6, 12, 1, 1, '#f00');
+      p(4, 12, 1, 1, '#ff6'); p(7, 12, 1, 1, '#ff6');
+      break;
+    }
+    case 'imp': {
+      // Tail (behind body)
+      p(4, 0, 1, 1, '#7a1a1a');
+      p(3, 0, 1, 1, '#c0392b');
+      p(2, 1, 2, 1, '#c0392b');
+      p(1, 2, 1, 1, '#e74c3c');
+      // Bat wings
+      ctx.globalAlpha *= 0.9;
+      p(-1, 4, 2, 2, '#0a0a0a'); p(11, 4, 2, 2, '#0a0a0a');
+      p(0, 3, 1, 1, '#0a0a0a'); p(11, 3, 1, 1, '#0a0a0a');
+      ctx.globalAlpha /= 0.9;
+      // Body
+      p(4, 2, 4, 4, '#c0392b');
+      p(4, 2, 4, 1, '#e74c3c');
+      p(4, 5, 4, 1, '#7a1a1a');
+      // Arms
+      p(2, 3, 2, 2, '#c0392b'); p(8, 3, 2, 2, '#c0392b');
+      // Head
+      p(4, 6, 4, 2, '#c0392b');
+      p(4, 6, 4, 1, '#e74c3c');
+      // Horns (curved)
+      p(3, 8, 1, 1, '#0a0a0a'); p(8, 8, 1, 1, '#0a0a0a');
+      p(2, 9, 1, 1, '#0a0a0a'); p(9, 9, 1, 1, '#0a0a0a');
+      // Eyes
+      p(5, 7, 1, 1, '#ff0'); p(6, 7, 1, 1, '#ff0');
+      p(5, 7, 1, 1, '#000'); p(6, 7, 1, 1, '#000');
+      // Pitchfork
+      p(10, 2, 3, 1, '#0a0a0a');
+      p(10, 1, 1, 1, '#0a0a0a'); p(12, 1, 1, 1, '#0a0a0a');
+      p(13, 0, 1, 1, '#0a0a0a'); p(13, 2, 1, 1, '#0a0a0a');
+      break;
+    }
+    case 'beast': {
+      p(1, 0, 1, 2, '#0a0a0a'); p(4, 0, 1, 2, '#0a0a0a');
+      p(7, 0, 1, 2, '#0a0a0a'); p(10, 0, 1, 2, '#0a0a0a');
+      p(1, 2, 10, 3, '#8b5a2b');
+      p(1, 2, 10, 1, '#a8753b');
+      p(1, 4, 10, 1, '#5c3a1e');
+      p(7, 3, 4, 3, '#a8753b');
+      p(7, 3, 4, 1, '#c4944a');
+      p(7, 2, 1, 1, '#5c3a1e'); p(10, 2, 1, 1, '#5c3a1e');
+      p(11, 5, 1, 1, '#0a0a0a');
+      p(9, 4, 1, 1, '#ff0'); p(9, 4, 1, 1, '#000');
+      p(10, 5, 1, 1, '#fff');
+      p(-1, 3, 1, 1, '#5c3a1e');
+      p(0, 2, 1, 1, '#5c3a1e');
+      p(-2, 2, 1, 1, '#5c3a1e');
+      p(-1, 4, 1, 1, '#5c3a1e');
+      break;
+    }
+    case 'drakon': {
+      // Tail (left, back)
+      p(0, 5, 1, 1, '#a02020');
+      p(-1, 6, 1, 1, '#a02020');
+      p(-2, 7, 1, 1, '#a02020');
+      // Body
+      p(1, 4, 7, 3, '#a02020');
+      p(1, 4, 7, 1, '#c03030');
+      p(1, 6, 7, 1, '#701010');
+      // Wings
+      ctx.globalAlpha *= 0.85;
+      p(-2, 4, 3, 2, '#5a1010'); p(3, 5, 2, 2, '#5a1010');
+      ctx.globalAlpha /= 0.85;
+      // Head
+      p(8, 4, 3, 2, '#a02020');
+      p(8, 4, 3, 1, '#c03030');
+      // Snout
+      p(11, 5, 1, 1, '#a02020');
+      // Eye
+      p(9, 4, 1, 1, '#ff0');
+      p(9, 4, 1, 1, '#000');
+      // Horns
+      p(8, 3, 1, 1, '#0a0a0a'); p(10, 3, 1, 1, '#0a0a0a');
+      // Legs
+      p(2, 7, 1, 1, '#a02020'); p(6, 7, 1, 1, '#a02020');
+      // Fire breath
+      p(12, 5, 1, 1, '#ff6b00');
+      p(13, 5, 1, 1, '#ff0');
+      p(12, 4, 1, 1, '#ff6b00');
+      break;
+    }
+    case 'specter': {
+      ctx.globalAlpha *= 0.75;
+      // Head bump
+      p(4, 12, 4, 1, '#e0d4f7');
+      p(3, 11, 6, 1, '#e0d4f7');
+      // Body
+      p(3, 4, 6, 7, '#e0d4f7');
+      p(3, 4, 6, 1, '#ffffff');
+      p(3, 10, 6, 1, '#b8a8d7');
+      // Wavy bottom
+      p(3, 11, 1, 1, '#e0d4f7');
+      p(5, 11, 1, 1, '#e0d4f7');
+      p(7, 11, 1, 1, '#e0d4f7');
+      p(4, 12, 1, 1, '#e0d4f7');
+      p(6, 12, 1, 1, '#e0d4f7');
+      p(8, 12, 1, 1, '#e0d4f7');
+      ctx.globalAlpha /= 0.75;
+      // Hollow eyes
+      p(4, 6, 1, 2, '#000');
+      p(7, 6, 1, 2, '#000');
+      p(4, 6, 1, 1, '#a855f7'); p(7, 6, 1, 1, '#a855f7');
+      // Mouth (oval)
+      p(5, 8, 2, 1, '#000');
+      break;
+    }
+    case 'brute': {
+      p(1, 0, 3, 1, '#0a0a0a'); p(8, 0, 3, 1, '#0a0a0a');
+      p(1, 1, 3, 3, '#4a3a2a'); p(8, 1, 3, 3, '#4a3a2a');
+      p(1, 4, 10, 5, '#6b5a3a');
+      p(1, 4, 10, 1, '#8b7a5a');
+      p(1, 8, 10, 1, '#4a3a2a');
+      p(-1, 5, 2, 3, '#6b5a3a'); p(11, 5, 2, 3, '#6b5a3a');
+      p(-1, 8, 2, 1, '#4a3a2a'); p(11, 8, 2, 1, '#4a3a2a');
+      // Head
+      p(2, 9, 7, 3, '#6b5a3a');
+      p(2, 9, 7, 1, '#8b7a5a');
+      // Horn
+      p(2, 8, 1, 1, '#ffffff');
+      p(1, 8, 1, 1, '#cccccc');
+      // Eye
+      p(5, 10, 1, 1, '#f00');
+      // Ear
+      p(8, 9, 1, 1, '#4a3a2a');
+      break;
+    }
+    case 'sprite': {
+      // Butterfly wings
+      ctx.globalAlpha *= 0.65;
+      p(0, 4, 4, 2, '#c4b5fd');
+      p(8, 4, 4, 2, '#c4b5fd');
+      p(0, 6, 2, 1, '#a78bfa');
+      p(10, 6, 2, 1, '#a78bfa');
+      ctx.globalAlpha /= 0.65;
+      // Body
+      p(5, 6, 2, 3, '#7fc8a9');
+      p(5, 6, 2, 1, '#a8e6cf');
+      // Head
+      p(5, 8, 2, 2, '#7fc8a9');
+      p(5, 8, 2, 1, '#a8e6cf');
+      // Antennae
+      p(4, 10, 1, 1, '#7fc8a9');
+      p(7, 10, 1, 1, '#7fc8a9');
+      p(3, 11, 1, 1, '#7fc8a9');
+      p(8, 11, 1, 1, '#7fc8a9');
+      // Eyes
+      p(5, 9, 1, 1, '#000');
+      p(6, 9, 1, 1, '#000');
+      // Legs
+      p(5, 9, 1, 1, '#000'); p(6, 9, 1, 1, '#000');
+      break;
+    }
+  }
+
+  // Generic weapon (skip imp, specter)
+  if (f.type !== 'imp' && f.type !== 'specter' && f.weaponData) {
+    if (f.weaponData.type === 'melee') {
+      p(11, 5, 1, 1, '#cbd5e1');
+      p(12, 4, 1, 3, '#cbd5e1');
+      p(13, 3, 1, 1, '#94a3b8');
+      p(13, 6, 1, 1, '#94a3b8');
+    } else {
+      p(11, 6, 3, 1, '#475569');
+      p(11, 7, 1, 1, '#1e293b');
+      p(13, 6, 1, 1, '#1e293b');
+    }
+  }
+
+  // Enhancement overlays
+  if (f.enhs.includes('wings')) {
+    ctx.globalAlpha *= 0.85;
+    p(-1, 5, 2, 3, '#ffffff');
+    p(11, 5, 2, 3, '#ffffff');
+    ctx.globalAlpha /= 0.85;
+  }
+  if (f.enhs.includes('horns')) {
+    p(3, 8, 1, 1, '#0a0a0a'); p(8, 8, 1, 1, '#0a0a0a');
+  }
+  if (f.enhs.includes('quills')) {
+    p(0, 5, 1, 1, '#ffffff'); p(0, 7, 1, 1, '#ffffff');
+  }
+  if (f.enhs.includes('tentacles')) {
+    p(-1, 5, 1, 1, '#9333ea');
+    p(-2, 6, 1, 1, '#9333ea');
+    p(-1, 7, 1, 1, '#9333ea');
+  }
+
+  ctx.restore();
+
+  if (f.alive) {
+    const barW = 44;
+    const bx = f.x + f.w/2 - barW/2;
+    const by = f.y - 6;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(bx-1, by-1, barW+2, 6);
+    ctx.fillStyle = f.hp/f.maxHp > 0.5 ? '#22c55e' : f.hp/f.maxHp > 0.25 ? '#facc15' : '#ef4444';
+    ctx.fillRect(bx, by, barW * (f.hp/f.maxHp), 4);
+  }
+  if (f.poisonTimer > 0) {
+    ctx.fillStyle = '#84cc16';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('☠', f.x + f.w/2, f.y - 12);
+  }
+}
+
+function endBattle(playerWon, escaped=false) {
+  if (state.battle.result) return;
+  state.battle.result = playerWon ? 'win' : 'lose';
+  if (battleAnim) cancelAnimationFrame(battleAnim);
+  const b = state.battle;
+  let money = 0;
+  if (escaped) {
+    money = -50;
+  } else if (playerWon) {
+    money = 200 + Math.floor(b.dmgDealt * 1.5) + b.score.player * 50;
+  } else {
+    money = -50;
+  }
+  // Tournament
+  if (state.difficulty === 'tournament') {
+    const t = state.tournament;
+    t.money += money;
+    if (playerWon) { t.wins++; t.streak++; }
+    else { t.losses++; t.streak = 0; }
+    // remove dead monster
+    if (state.selectedCorralIdx !== null && t.corrals[state.selectedCorralIdx]) {
+      const m = t.corrals[state.selectedCorralIdx];
+      if (m.hp <= 0) {
+        t.corrals.splice(state.selectedCorralIdx, 1);
+        state.selectedCorralIdx = null;
+      }
+    }
+    saveTournament();
+  } else {
+    state.money = Math.max(0, (state.money||0) + money);
+  }
+  // Show results
+  document.getElementById('result-emoji').textContent = escaped ? '🏃' : playerWon ? '🏆' : '💀';
+  document.getElementById('result-title').textContent = escaped ? 'Fled!' : playerWon ? 'VICTORY!' : 'DEFEAT';
+  document.getElementById('result-title').className = `text-3xl font-bold mb-2 ${playerWon?'text-yellow-400':'text-red-400'}`;
+  document.getElementById('result-subtitle').textContent = BATTLEFIELDS[state.battlefield].name + ' - ' + MODES[state.mode].name;
+  document.getElementById('result-battlefield').textContent = BATTLEFIELDS[state.battlefield].name;
+  document.getElementById('result-mode').textContent = MODES[state.mode].name;
+  document.getElementById('result-score').textContent = b.score.player + ' : ' + b.score.enemy;
+  document.getElementById('result-dmg').textContent = b.dmgDealt;
+  document.getElementById('result-taken').textContent = b.dmgTaken;
+  document.getElementById('result-money').textContent = (money>=0?'+':'') + money;
+  document.getElementById('result-money').className = `font-bold ${money>=0?'text-yellow-400':'text-red-400'}`;
+  document.getElementById('results-next-btn').textContent = state.difficulty === 'tournament' ? 'Back to HQ →' : 'New Battle →';
+  showScreen('results-screen');
+}
+
+function rematch() {
+  startBattle();
+}
+
+function resultsNext() {
+  if (state.difficulty === 'tournament') {
+    showTournamentHub();
+  } else {
+    showScreen('title-screen');
+  }
+}
+
+// ===================== INIT =====================
+if (hasTournament()) {
+  document.getElementById('continue-tournament').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
